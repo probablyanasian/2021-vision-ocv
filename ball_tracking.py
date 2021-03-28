@@ -13,6 +13,8 @@ import cv2
 import imutils
 import time
 
+# Normal image, Filter image
+DEBUG = [True, True]
 CONNECT_TO_SERVER = False
 CENTER_BAND = 100
 HORIZONTAL_OFFSET = 100
@@ -55,7 +57,7 @@ args = vars(ap.parse_args())
 # list of tracked points
 yellowLower = (16, 0, 64) # 22, 93, 0
 yellowUpper = (24, 255, 255) # 45, 255, 255
-minRadius = 15 # 10git a
+minRadius = 15 # 10
 pts = deque(maxlen=args["buffer"])
 
 # if a video path was not supplied, grab the reference
@@ -97,7 +99,8 @@ while True:
 	# a series of dilations and erosions to remove any small
 	# blobs left in the mask
 	mask = cv2.inRange(hsv, yellowLower, yellowUpper)
-	cv2.imshow("filter", mask)
+	if DEBUG[1]:
+		cv2.imshow("filter", mask)
 	mask = cv2.erode(mask, None, iterations=2)
 	mask = cv2.dilate(mask, None, iterations=2)
 
@@ -136,9 +139,10 @@ while True:
 		center = None
 
 	if CONNECT_TO_SERVER:
-		if center == None:
+		if center is None:
 			table.putBoolean('has_target', False)
 		else:
+			table.putBoolean('has_target', True)
 			if center[0] < (img_center[0] - CENTER_BAND):
 				table.putBoolean('left_exceeded', True)
 			else:
@@ -171,7 +175,8 @@ while True:
 		cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
 	# show the frame to our screen
-	cv2.imshow("Frame", frame)
+	if DEBUG[0]:
+		cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
 
 	# if the 'q' key is pressed, stop the loop

@@ -134,13 +134,17 @@ while True:
 		c = max(cnts, key=cv2.contourArea)
 		((x, y), radius) = cv2.minEnclosingCircle(c)
 		M = cv2.moments(c)
-		center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+		if radius > minRadius:
+			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+		else:
+			center = None
 	else:
 		center = None
 
 	if CONNECT_TO_SERVER:
 		if center is None:
 			table.putBoolean('has_target', False)
+			table.putBoolean('near', False)
 		else:
 			table.putBoolean('has_target', True)
 			if center[0] < (img_center[0] - CENTER_BAND):

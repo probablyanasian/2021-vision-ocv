@@ -38,7 +38,7 @@ def connect():
         if not notified[0]:
             cond.wait()
 
-    return NetworkTables.getTable('vision-movement')
+    return NetworkTables.getTable('gs-vision-table')
 
 
 if CONNECT_TO_SERVER:

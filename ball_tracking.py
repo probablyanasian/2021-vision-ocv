@@ -5,11 +5,42 @@
 # import the necessary packages
 from collections import deque
 from imutils.video import VideoStream
+from networktables import NetworkTables
 import numpy as np
 import argparse
+import threading
 import cv2
 import imutils
 import time
+
+CONNECT_TO_SERVER = False
+CENTER_BAND = 100
+HORIZONTAL_OFFSET = 100
+
+def connect():
+    cond = threading.Condition()
+    notified = [False]
+
+    def connectionListener(connected, info):
+        print(info, '; Connected=%s' % connected)
+        with cond:
+            notified[0] = True
+            cond.notify()
+
+    NetworkTables.initialize(server='roborio-2643-frc.local')
+    NetworkTables.addConnectionListener(
+        connectionListener, immediateNotify=True)
+
+    with cond:
+        print("Waiting")
+        if not notified[0]:
+            cond.wait()
+
+    return NetworkTables.getTable('vision-movement')
+
+
+if CONNECT_TO_SERVER:
+    table = connect()
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -22,19 +53,23 @@ args = vars(ap.parse_args())
 # define the lower and upper boundaries of the "green"
 # ball in the HSV color space, then initialize the
 # list of tracked points
-yellowLower = (22, 93, 0)
-yellowUpper = (45, 255, 255)
+yellowLower = (16, 0, 64) # 22, 93, 0
+yellowUpper = (24, 255, 255) # 45, 255, 255
 minRadius = 15 # 10git a
 pts = deque(maxlen=args["buffer"])
 
 # if a video path was not supplied, grab the reference
 # to the webcam
 if not args.get("video", False):
-	vs = VideoStream(src=0).start()
+	vs = VideoStream(src=1).start()
 
 # otherwise, grab a reference to the video file
 else:
 	vs = cv2.VideoCapture(args["video"])
+
+img_x_size = int(vs.get(cv2.CAP_PROP_FRAME_WIDTH))
+img_y_size = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
+img_center = (img_x_size//2, img_y_size//2)
 
 # allow the camera or video file to warm up
 time.sleep(2.0)
@@ -62,6 +97,7 @@ while True:
 	# a series of dilations and erosions to remove any small
 	# blobs left in the mask
 	mask = cv2.inRange(hsv, yellowLower, yellowUpper)
+	cv2.imshow("filter", mask)
 	mask = cv2.erode(mask, None, iterations=2)
 	mask = cv2.dilate(mask, None, iterations=2)
 
@@ -96,6 +132,28 @@ while True:
 		((x, y), radius) = cv2.minEnclosingCircle(c)
 		M = cv2.moments(c)
 		center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+	else:
+		center = None
+
+	if CONNECT_TO_SERVER:
+		if center == None:
+			table.putBoolean('has_target', False)
+		else:
+			if center[0] < (img_center[0] - CENTER_BAND):
+				table.putBoolean('left_exceeded', True)
+			else:
+				table.putBoolean('left_exceeded', False)
+
+			if center[0] > (img_center[0] + CENTER_BAND):
+				table.putBoolean('right_exceeded', True)
+			else:
+				table.putBoolean('right_exceeded', False)
+			
+			if center[1] < (img_center[1] + HORIZONTAL_OFFSET):
+				table.putBoolean('near', True)
+			else:
+				table.putBoolean('near', False)
+
 
 	# update the points queue
 	pts.appendleft(center)

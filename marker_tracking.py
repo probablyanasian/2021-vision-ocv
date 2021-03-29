@@ -13,16 +13,11 @@ import cv2
 import imutils
 import time
 
-# Normal image, Filter image, Show center band, Show horizontal divider
-DEBUG = {
-	'show_img': True,
-	'show_filter': True,
-	'show_band': True,
-	'show_horiz_div': True}
+# Normal image, Filter image
+DEBUG = [True, True]
 CONNECT_TO_SERVER = False
 CENTER_BAND = 100
 HORIZONTAL_OFFSET = 100
-PERCENT_ERROR = 0.25 
 
 def connect():
     cond = threading.Condition()
@@ -43,7 +38,7 @@ def connect():
         if not notified[0]:
             cond.wait()
 
-    return NetworkTables.getTable('gs-vision-table')
+    return NetworkTables.getTable('gs-vision-table-marker')
 
 
 if CONNECT_TO_SERVER:
@@ -58,8 +53,23 @@ args = vars(ap.parse_args())
 # define the lower and upper boundaries of the "green"
 # ball in the HSV color space, then initialize the
 # list of tracked points
-yellowLower = (16, 0, 64) # 22, 93, 0
-yellowUpper = (24, 255, 255) # 45, 255, 255
+# TODO: make cyan by image color inversion... perhaps
+# Invert and convert to HSV
+
+# img_hsv=cv2.cvtColor(255-img, cv2.COLOR_BGR2HSV) 
+
+# # Mask all red pixels (cyan in inverted image)
+# lo = np.uint8([80,30,0]) 
+# hi = np.uint8([95,255,255])  
+
+# mask = cv2.inRange(img_hsv,lo,hi)
+
+redLower = (16, 0, 64)    # TODO: get vals. 
+redUpper = (24, 255, 255) # TODO: get vals. 
+
+blueLower = (0, 0, 0)     # TODO: get vals.
+blueUpper = (179, 0, 0)   # TODO: get vals. 
+
 minRadius = 15 # 10
 pts = deque(maxlen=args["buffer"])
 
@@ -95,7 +105,7 @@ while True:
 	# a series of dilations and erosions to remove any small
 	# blobs left in the mask
 	mask = cv2.inRange(hsv, yellowLower, yellowUpper)
-	if DEBUG['show_filter']:
+	if DEBUG[1]:
 		cv2.imshow("filter", mask)
 	mask = cv2.erode(mask, None, iterations=2)
 	mask = cv2.dilate(mask, None, iterations=2)
@@ -116,16 +126,6 @@ while True:
 			# c = max(cnts, key=cv2.contourArea)
 			((x, y), radius) = cv2.minEnclosingCircle(c)
 			M = cv2.moments(c)
-			
-			area = M['m00']
-			calc_area = np.pi*(radius**2)
-			percent = area/calc_area
-
-			if percent >= (1-PERCENT_ERROR) and percent <= (1+PERCENT_ERROR):
-				pass
-			else:
-				continue
-
 			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
 			# only proceed if the radius meets a minimum size
@@ -140,16 +140,8 @@ while True:
 		c = max(cnts, key=cv2.contourArea)
 		((x, y), radius) = cv2.minEnclosingCircle(c)
 		M = cv2.moments(c)
-
-		area = M['m00']
-		calc_area = np.pi*(radius**2)
-		percent = area/calc_area
-
-		if percent >= (1-PERCENT_ERROR) and percent <= (1+PERCENT_ERROR):
-			if radius > minRadius:
-				center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-			else:
-				center = None
+		if radius > minRadius:
+			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 		else:
 			center = None
 	else:
@@ -193,17 +185,7 @@ while True:
 		cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
 	# show the frame to our screen
-	if DEBUG['show_img']:
-		if DEBUG['show_band']:
-			left_bound = img_center[0] - CENTER_BAND
-			right_bound = img_center[0] + CENTER_BAND
-			frame = cv2.line(frame,(left_bound, 0),(left_bound, img_y_size),(252, 3, 119),3)
-			frame = cv2.line(frame,(right_bound, 0),(right_bound, img_y_size),(252, 3, 119),3)
-
-		if DEBUG['show_horiz_div']:
-			horiz_band = img_center[1] + HORIZONTAL_OFFSET
-			frame = cv2.line(frame,(0, horiz_band),(img_x_size, horiz_band),(252, 3, 119),3)
-
+	if DEBUG[0]:
 		cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
 

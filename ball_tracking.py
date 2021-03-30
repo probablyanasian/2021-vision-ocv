@@ -20,6 +20,7 @@ DEBUG = {
 	'show_band': True,
 	'show_horiz_div': True}
 CONNECT_TO_SERVER = False
+PRODUCTION = True # remove some double calculations.
 CENTER_BAND = 100
 HORIZONTAL_OFFSET = 100
 PERCENT_ERROR = 0.25 
@@ -59,7 +60,7 @@ args = vars(ap.parse_args())
 # ball in the HSV color space, then initialize the
 # list of tracked points
 yellowLower = (16, 0, 64) # 22, 93, 0
-yellowUpper = (24, 255, 255) # 45, 255, 255
+yellowUpper = (32, 255, 255) # 45, 255, 255
 minRadius = 15 # 10
 pts = deque(maxlen=args["buffer"])
 
@@ -78,6 +79,8 @@ img_center = (img_x_size//2, img_y_size//2)
 # allow the camera or video file to warm up
 
 # keep looping
+hold_value = 0 # hold val
+center_hold = None
 while True:
 	# grab the current frame
 	frame = vs.read()
@@ -112,6 +115,7 @@ while True:
 		# find the largest contour in the mask, then use
 		# it to compute the minimum enclosing circle and
 		# centroid
+		valid_cnts = []
 		for c in cnts:
 			# c = max(cnts, key=cv2.contourArea)
 			((x, y), radius) = cv2.minEnclosingCircle(c)
@@ -121,76 +125,101 @@ while True:
 			calc_area = np.pi*(radius**2)
 			percent = area/calc_area
 
+			# validate circular.
 			if percent >= (1-PERCENT_ERROR) and percent <= (1+PERCENT_ERROR):
-				pass
-			else:
-				continue
-
-			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-
-			# only proceed if the radius meets a minimum size
-			if radius > minRadius:
+				center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+				# only proceed if the radius meets a minimum size
 				# draw the circle and centroid on the frame,
 				# then update the list of tracked points
-				cv2.circle(frame, (int(x), int(y)), int(radius),
-					(0, 255, 255), 2)
-				cv2.circle(frame, center, 5, (0, 0, 255), -1)
-		
-		#track the largest
-		c = max(cnts, key=cv2.contourArea)
-		((x, y), radius) = cv2.minEnclosingCircle(c)
-		M = cv2.moments(c)
+				if radius > minRadius:
+					valid_cnts.append(c)
 
-		area = M['m00']
-		calc_area = np.pi*(radius**2)
-		percent = area/calc_area
-
-		if percent >= (1-PERCENT_ERROR) and percent <= (1+PERCENT_ERROR):
-			if radius > minRadius:
-				center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+					if DEBUG['show_img']:
+						cv2.circle(frame, (int(x), int(y)), int(radius),
+						(0, 255, 255), 2)
+						cv2.circle(frame, center, 5, (0, 0, 255), -1)
 			else:
-				center = None
+				continue # useless else case lol.
+
+
+		#track the largest
+		if len(valid_cnts) > 0:
+			c = max(valid_cnts, key=cv2.contourArea)
+			((x, y), radius) = cv2.minEnclosingCircle(c)
+			M = cv2.moments(c)
+
+			# area = M['m00']
+			# calc_area = np.pi*(radius**2)
+			# percent = area/calc_area
+
+			# if percent >= (1-PERCENT_ERROR) and percent <= (1+PERCENT_ERROR):
+				# if radius > minRadius:
+			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+			center_hold = center
+			hold_value = 15
+
+			if DEBUG['show_img']:
+				cv2.circle(frame, (int(x), int(y)), int(radius),
+				(0, 255, 255), 2)
+				cv2.circle(frame, center, 5, (0, 0, 255), -1)
+				# else:
+					# center = None
+			# else:
+				# center = None
 		else:
 			center = None
 	else:
 		center = None
 
+	if hold_value >= 0:
+		hold_value -= 1
+
 	if CONNECT_TO_SERVER:
-		if center is None:
+		if center_hold is None:
 			table.putBoolean('has_target', False)
 			table.putBoolean('near', False)
 		else:
 			table.putBoolean('has_target', True)
-			if center[0] < (img_center[0] - CENTER_BAND):
-				table.putNumber('left_exceeded', ((img_center[0] - CENTER_BAND) - center[0]))
+			if center_hold[0] < (img_center[0] - CENTER_BAND):
+				table.putNumber('left_exceeded', ((img_center[0] - CENTER_BAND) - center_hold[0]))
 			else:
 				table.putNumber('left_exceeded', 0)
 
-			if center[0] > (img_center[0] + CENTER_BAND):
+			if center_hold[0] > (img_center[0] + CENTER_BAND):
 				table.putNumber('right_exceeded', (center[0] - (img_center[0] + CENTER_BAND)))
 			else:
 				table.putNumber('right_exceeded', 0)
 			
-			if center[1] < (img_center[1] + HORIZONTAL_OFFSET):
+			if center_hold[1] < (img_center[1] + HORIZONTAL_OFFSET):
 				table.putBoolean('near', True)
 			else:
 				table.putBoolean('near', False)
 
 
+	# if center_hold is None:
+	# 	print("DED", hold_value)
+	# else:
+	# 	print("POTATO", hold_value)
+
 	# update the points queue
-	pts.appendleft(center)
+	if hold_value > 0:
+		pts.appendleft(center_hold)
+	else:
+		center_hold = center
+		pts.appendleft(center) # clears pts list
 
-	# loop over the set of tracked points
-	for i in range(1, len(pts)):
-		# if either of the tracked points are None, ignore
-		# them
-		if pts[i - 1] is None or pts[i] is None:
-			continue
+	if DEBUG['show_img']:
+		# loop over the set of tracked points
+		for i in range(1, len(pts)):
+			# if either of the tracked points are None, ignore
+			# them
+			if pts[i - 1] is None or pts[i] is None:
+				continue
 
-		# otherwise, compute the thickness of the line and
-		# draw the connecting lines
-		thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
-		cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
+			# otherwise, compute the thickness of the line and
+			# draw the connecting lines
+			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
+			cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
 	# show the frame to our screen
 	if DEBUG['show_img']:
@@ -205,6 +234,7 @@ while True:
 			frame = cv2.line(frame,(0, horiz_band),(img_x_size, horiz_band),(252, 3, 119),3)
 
 		cv2.imshow("Frame", frame)
+		
 	key = cv2.waitKey(1) & 0xFF
 
 	# if the 'q' key is pressed, stop the loop

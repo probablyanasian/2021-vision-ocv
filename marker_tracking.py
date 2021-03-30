@@ -14,8 +14,12 @@ import time
 DEBUG = {
 	'show_img': True,
 	'show_filter': True,
-	'show_centroid': True
+	'show_centroid': True,
+	'show_centers': {
+		'blue': True,
+		'red': True
 	}
+}
 REQ_CLOSEST = True
 CONNECT_TO_SERVER = False
 CENTER_BAND = 100
@@ -48,7 +52,7 @@ if CONNECT_TO_SERVER:
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-b", "--buffer", type=int, default=64,
+ap.add_argument("-b", "--buffer", type=int, default=32,
 	help="max buffer size")
 args = vars(ap.parse_args())
 
@@ -133,7 +137,9 @@ while True:
 					'left_edge': min(box[0][0], box[3][0]),
 					'right_edge': max(box[1][0], box[2][0]),
 					'top_edge': min(box[0][1], box[1][1]),
-					'bottom_edge': min(box[2][1], box[3][1])
+					'bottom_edge': min(box[2][1], box[3][1]),
+					'center': red_center,
+					'box': box
 				})
 				# draw the circle and centroid on the frame,
 				# then update the list of tracked points
@@ -186,15 +192,22 @@ while True:
 				box = cv2.boxPoints(rect)
 				box = np.int0(box)
 
-				if DEBUG['show_img']:
-					cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
-				valid_blue_cnts.append({
-					'contour': c,
-					'left_edge': min(box[0][0], box[3][0]),
-					'right_edge': max(box[1][0], box[2][0]),
-					'top_edge': min(box[0][1], box[1][1]),
-					'bottom_edge': min(box[2][1], box[3][1])
-				})
+				cv2.circle(frame, blue_center, 5, (255, 130, 50), -1)
+
+				for c in valid_red_cnts:
+					if blue_center[0] >= c['left_edge'] and blue_center[0] < c['right_edge'] and blue_center[1] < c['top_edge']:
+						valid_blue_cnts.append({
+							'contour': c,
+							'left_edge': min(box[0][0], box[3][0]),
+							'right_edge': max(box[1][0], box[2][0]),
+							'top_edge': min(box[0][1], box[1][1]),
+							'bottom_edge': min(box[2][1], box[3][1]),
+							'center': blue_center,
+							'box': box
+						})
+						if DEBUG['show_img']:
+							cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
+						break
 				# draw the circle and centroid on the frame,
 				# then update the list of tracked points
 		
@@ -213,6 +226,7 @@ while True:
 			M = cv2.moments(c)
 			if M["m00"] > minArea:
 				blue_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+				print(blue_center)
 			else:
 				blue_center = None
 	else:
@@ -242,7 +256,7 @@ while True:
 
 	# update the points queue
 	if DEBUG['show_img'] and REQ_CLOSEST:
-		red_pts.appendleft(center)
+		red_pts.appendleft(red_center)
 
 		# loop over the set of tracked points
 		for i in range(1, len(red_pts)):
@@ -256,7 +270,7 @@ while True:
 			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
 			cv2.line(frame, red_pts[i - 1], red_pts[i], (0, 0, 255), thickness)
 
-		blue_pts.appendleft(center)
+		blue_pts.appendleft(blue_center)
 
 		# loop over the set of tracked points
 		for i in range(1, len(blue_pts)):
@@ -270,8 +284,15 @@ while True:
 			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
 			cv2.line(frame, blue_pts[i - 1], blue_pts[i], (255, 0, 0), thickness)
 
-	# show the frame to our screen
-	if DEBUG['show_img']:
+		# show the frame to our screen
+		if DEBUG['show_centers']['red']:
+			for c in valid_red_cnts:
+				cv2.circle(frame, c['center'], 5, (0, 0, 255), -1)
+		
+		if DEBUG['show_centers']['blue']:
+			for c in valid_blue_cnts:
+				cv2.circle(frame, c['center'], 5, (255, 130, 50), -1)
+
 		cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
 

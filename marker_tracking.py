@@ -6,6 +6,7 @@
 from collections import deque
 from imutils.video import VideoStream
 from networktables import NetworkTables
+# from sympy import Interval, Union # not performant enough with multiple interval joins.
 import numpy as np
 import argparse
 import threading
@@ -64,13 +65,13 @@ args = vars(ap.parse_args())
 
 # mask = cv2.inRange(img_hsv,lo,hi)
 
-redLower = (16, 0, 64)    # TODO: get vals. 
-redUpper = (24, 255, 255) # TODO: get vals. 
+redLower = (170, 0, 0)    # TODO: get vals. 
+redUpper = (179, 255, 255) # TODO: get vals. 
 
-blueLower = (0, 0, 0)     # TODO: get vals.
-blueUpper = (179, 0, 0)   # TODO: get vals. 
+blueLower = (100, 80, 0)     # TODO: get vals. higher saturation I think. b/c MPR light blue.
+blueUpper = (110, 255, 255)   # TODO: get vals. 
 
-minRadius = 15 # 10
+minArea = 15 # 10
 pts = deque(maxlen=args["buffer"])
 
 # if a video path was not supplied, grab the reference
@@ -104,43 +105,68 @@ while True:
 	# construct a mask for the color "green", then perform
 	# a series of dilations and erosions to remove any small
 	# blobs left in the mask
-	mask = cv2.inRange(hsv, yellowLower, yellowUpper)
+	red_mask = cv2.inRange(hsv, redLower, redUpper)
 	if DEBUG[1]:
-		cv2.imshow("filter", mask)
-	mask = cv2.erode(mask, None, iterations=2)
-	mask = cv2.dilate(mask, None, iterations=2)
+		cv2.imshow("red_filter", red_mask)
+	red_mask = cv2.erode(red_mask, None, iterations=2)
+	red_mask = cv2.dilate(red_mask, None, iterations=2)
+	
+	red_cnts = cv2.findContours(red_mask.copy(), cv2.RETR_EXTERNAL,
+		cv2.CHAIN_APPROX_SIMPLE)
+	red_cnts = imutils.grab_contours(red_cnts)
+
+	blue_mask = cv2.inRange(hsv, blueLower, blueUpper)
+	if DEBUG[1]:
+		cv2.imshow("blue_filter", blue_mask)
+	blue_mask = cv2.erode(blue_mask, None, iterations=2)
+	blue_mask = cv2.dilate(blue_mask, None, iterations=2)
 
 	# find contours in the mask and initialize the current
 	# (x, y) center of the ball
-	cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
+	blue_cnts = cv2.findContours(blue_mask.copy(), cv2.RETR_EXTERNAL,
 		cv2.CHAIN_APPROX_SIMPLE)
-	cnts = imutils.grab_contours(cnts)
+	blue_cnts = imutils.grab_contours(blue_cnts)
+	
 	center = None
 
 	# only proceed if at least one contour was found
-	if len(cnts) > 0:
+	valid_red_cnts = []
+	if len(red_cnts) > 0:
 		# find the largest contour in the mask, then use
 		# it to compute the minimum enclosing circle and
 		# centroid
-		for c in cnts:
+		for c in red_cnts:
 			# c = max(cnts, key=cv2.contourArea)
-			((x, y), radius) = cv2.minEnclosingCircle(c)
+
+			rect = cv2.minAreaRect(c)
+			box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
+			print(box)
 			M = cv2.moments(c)
 			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
 			# only proceed if the radius meets a minimum size
-			if radius > minRadius:
+			if M["m00"] > minArea:
+				print("Union: ", red_union)
+				valid_red_cnts.append(c)
 				# draw the circle and centroid on the frame,
 				# then update the list of tracked points
-				cv2.circle(frame, (int(x), int(y)), int(radius),
-					(0, 255, 255), 2)
-				cv2.circle(frame, center, 5, (0, 0, 255), -1)
+		
+		if red_union.boundary is not Union().boundary:
+			print(min(red_union.boundary))
 		
 		#track the largest
-		c = max(cnts, key=cv2.contourArea)
-		((x, y), radius) = cv2.minEnclosingCircle(c)
+		c = max(red_cnts, key=cv2.contourArea)
+		rect = cv2.minAreaRect(c)
+		box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
+		print(box)
+		frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
+		frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
+
+		box = np.int0(box)
+		cv2.drawContours(frame,[box],0,(0,0,255),2)
+
 		M = cv2.moments(c)
-		if radius > minRadius:
+		if M["m00"] > minArea:
 			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 		else:
 			center = None

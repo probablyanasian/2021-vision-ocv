@@ -18,6 +18,18 @@ DEBUG = {
 	'show_centers': {
 		'blue': True,
 		'red': True
+	},
+	'show_max_box': {
+		'blue': True,
+		'red': True	
+	},
+	'show_lines': {
+		'blue': True,
+		'red': True	
+	},
+	'draw_normal_box': {
+		'blue': False,
+		'red': False	
 	}
 }
 REQ_CLOSEST = True
@@ -141,24 +153,6 @@ while True:
 				})
 				# draw the circle and centroid on the frame,
 				# then update the list of tracked points
-		
-		if REQ_CLOSEST:
-			#track the largest
-			c = max(red_cnts, key=cv2.contourArea)
-			rect = cv2.minAreaRect(c)
-			box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
-			box = np.int0(box)
-
-			if DEBUG['show_img']:
-				frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
-				frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
-				cv2.drawContours(frame,[box],0,(0,0,255),2)
-
-			M = cv2.moments(c)
-			if M["m00"] > minArea:
-				red_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-			else:
-				red_center = None
 	else:
 		red_center = None
 
@@ -190,8 +184,8 @@ while True:
 				box = cv2.boxPoints(rect)
 				box = np.int0(box)
 
-				for c in valid_red_cnts:
-					if blue_center[0] >= c['left_edge'] and blue_center[0] <= c['right_edge'] and blue_center[1] <= c['top_edge']:
+				for red_c in valid_red_cnts:
+					if blue_center[0] >= red_c['left_edge'] and blue_center[0] <= red_c['right_edge'] and blue_center[1] <= red_c['top_edge']:
 						valid_blue_cnts.append({
 							'contour': c,
 							'left_edge': min(box[0][0], box[3][0]),
@@ -201,47 +195,59 @@ while True:
 							'center': blue_center,
 							'box': box
 						})
-						if DEBUG['show_img']:
+						if DEBUG['show_img'] and DEBUG['draw_normal_box']['blue']:
 							cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
 						break
 				# draw the circle and centroid on the frame,
 				# then update the list of tracked points
-		
-		if REQ_CLOSEST:
-			#track the largest
-			c = max(blue_cnts, key=cv2.contourArea)
-			rect = cv2.minAreaRect(c)
-			box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
-			box = np.int0(box)
-
-			if DEBUG['show_img']:
-				frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
-				frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
-				cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
-
-			M = cv2.moments(c)
-			if M["m00"] > minArea:
-				blue_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-			else:
-				blue_center = None
 	else:
 		blue_center = None
 
 	to_rm = []
 	for ind, red_c in enumerate(valid_red_cnts):
 		in_range = False
-		for c in valid_blue_cnts:
-			if red_c['center'][0] >= c['left_edge'] and red_c['center'][0] <= c['right_edge'] and red_c['center'][1] >= c['bottom_edge']:
+		for blue_c in valid_blue_cnts:
+			if red_c['center'][0] >= blue_c['left_edge'] and red_c['center'][0] <= blue_c['right_edge'] and red_c['center'][1] >= blue_c['bottom_edge']:
 				in_range = True
 				break
 		if not in_range:
 			to_rm.append(ind)
 		else:
-			if DEBUG['show_img']:
+			if DEBUG['show_img'] and DEBUG['draw_normal_box']['red']:
 				cv2.drawContours(frame, [red_c['box']], 0, (0, 0, 255), 2)
 
 	for ind in sorted(to_rm, reverse=True):
 		valid_red_cnts.pop(ind)
+
+	if REQ_CLOSEST:
+			#track the largest
+			if len(valid_blue_cnts) > 0:
+				c = max([datapack for datapack in valid_blue_cnts], key=lambda dc: cv2.contourArea(dc['contour']))
+				box = c['box']
+
+				if DEBUG['show_img']:
+					if DEBUG['show_lines']['blue']:
+						frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),
+								(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
+						frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),
+								(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
+					if DEBUG['show_max_box']['blue']:
+						cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
+				blue_max_c = c
+
+			if len(valid_red_cnts) > 0:
+				c = max([datapack for datapack in valid_red_cnts], key=lambda dc: cv2.contourArea(dc['contour']))
+				box = c['box']
+
+				if DEBUG['show_img']:
+					if DEBUG['show_lines']['red']:
+						frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),
+								(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
+						frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),
+								(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
+					if DEBUG['show_max_box']['red']:
+						cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
+				red_max_c = c
 
 	if CONNECT_TO_SERVER:
 		if center is None:

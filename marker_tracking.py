@@ -74,7 +74,7 @@ redUpper = (179, 255, 255) # TODO: get vals.
 blueLower = (100, 80, 0)     # TODO: get vals. higher saturation I think. b/c MPR light blue.
 blueUpper = (110, 255, 255)   # TODO: get vals. 
 
-minArea = 50 # 10 TODO: tune.
+minArea = 100 # 10 TODO: tune.
 red_pts = deque(maxlen=args["buffer"])
 blue_pts = deque(maxlen=args["buffer"])
 
@@ -130,8 +130,6 @@ while True:
 				rect = cv2.minAreaRect(c)
 				box = cv2.boxPoints(rect)
 				box = np.int0(box)
-				if DEBUG['show_img']:
-					cv2.drawContours(frame,[box],0,(0,0,255),2)
 				valid_red_cnts.append({
 					'contour': c,
 					'left_edge': min(box[0][0], box[3][0]),
@@ -192,10 +190,8 @@ while True:
 				box = cv2.boxPoints(rect)
 				box = np.int0(box)
 
-				cv2.circle(frame, blue_center, 5, (255, 130, 50), -1)
-
 				for c in valid_red_cnts:
-					if blue_center[0] >= c['left_edge'] and blue_center[0] < c['right_edge'] and blue_center[1] < c['top_edge']:
+					if blue_center[0] >= c['left_edge'] and blue_center[0] <= c['right_edge'] and blue_center[1] <= c['top_edge']:
 						valid_blue_cnts.append({
 							'contour': c,
 							'left_edge': min(box[0][0], box[3][0]),
@@ -226,11 +222,26 @@ while True:
 			M = cv2.moments(c)
 			if M["m00"] > minArea:
 				blue_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-				print(blue_center)
 			else:
 				blue_center = None
 	else:
 		blue_center = None
+
+	to_rm = []
+	for ind, red_c in enumerate(valid_red_cnts):
+		in_range = False
+		for c in valid_blue_cnts:
+			if red_c['center'][0] >= c['left_edge'] and red_c['center'][0] <= c['right_edge'] and red_c['center'][1] >= c['bottom_edge']:
+				in_range = True
+				break
+		if not in_range:
+			to_rm.append(ind)
+		else:
+			if DEBUG['show_img']:
+				cv2.drawContours(frame, [red_c['box']], 0, (0, 0, 255), 2)
+
+	for ind in sorted(to_rm, reverse=True):
+		valid_red_cnts.pop(ind)
 
 	if CONNECT_TO_SERVER:
 		if center is None:

@@ -16,7 +16,7 @@ DEBUG = {
 	'show_filter': True,
 	'show_centroid': True
 	}
-REQ_CLOSEST = False
+REQ_CLOSEST = True
 CONNECT_TO_SERVER = False
 CENTER_BAND = 100
 HORIZONTAL_OFFSET = 100
@@ -71,7 +71,9 @@ blueLower = (100, 80, 0)     # TODO: get vals. higher saturation I think. b/c MP
 blueUpper = (110, 255, 255)   # TODO: get vals. 
 
 minArea = 50 # 10 TODO: tune.
-pts = deque(maxlen=args["buffer"])
+red_pts = deque(maxlen=args["buffer"])
+blue_pts = deque(maxlen=args["buffer"])
+
 
 vs = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 vs.set(cv2.CAP_PROP_FPS, 30)
@@ -109,19 +111,6 @@ while True:
 		cv2.CHAIN_APPROX_SIMPLE)
 	red_cnts = imutils.grab_contours(red_cnts)
 
-	blue_mask = cv2.inRange(hsv, blueLower, blueUpper)
-	if DEBUG['show_filter']:
-		cv2.imshow("blue_filter", blue_mask)
-	blue_mask = cv2.erode(blue_mask, None, iterations=2)
-	blue_mask = cv2.dilate(blue_mask, None, iterations=2)
-
-	# find contours in the mask
-	blue_cnts = cv2.findContours(blue_mask.copy(), cv2.RETR_EXTERNAL,
-		cv2.CHAIN_APPROX_SIMPLE)
-	blue_cnts = imutils.grab_contours(blue_cnts)
-	
-	center = None
-
 	# only proceed if at least one contour was found
 	valid_red_cnts = []
 	if len(red_cnts) > 0:
@@ -130,14 +119,15 @@ while True:
 		# centroid
 		for c in red_cnts:
 			M = cv2.moments(c)
-			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+			red_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
 			# only proceed if the radius meets a minimum size
 			if M["m00"] > minArea:
 				rect = cv2.minAreaRect(c)
 				box = cv2.boxPoints(rect)
 				box = np.int0(box)
-				cv2.drawContours(frame,[box],0,(0,0,255),2)
+				if DEBUG['show_img']:
+					cv2.drawContours(frame,[box],0,(0,0,255),2)
 				valid_red_cnts.append({
 					'contour': c,
 					'left_edge': min(box[0][0], box[3][0]),
@@ -153,20 +143,80 @@ while True:
 			c = max(red_cnts, key=cv2.contourArea)
 			rect = cv2.minAreaRect(c)
 			box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
-			print(box)
-			frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
-			frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
-
 			box = np.int0(box)
-			cv2.drawContours(frame,[box],0,(0,0,255),2)
+
+			if DEBUG['show_img']:
+				frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
+				frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
+				cv2.drawContours(frame,[box],0,(0,0,255),2)
 
 			M = cv2.moments(c)
 			if M["m00"] > minArea:
-				center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+				red_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 			else:
-				center = None
+				red_center = None
 	else:
-		center = None
+		red_center = None
+
+	blue_mask = cv2.inRange(hsv, blueLower, blueUpper)
+	if DEBUG['show_filter']:
+		cv2.imshow("blue_filter", blue_mask)
+	blue_mask = cv2.erode(blue_mask, None, iterations=2)
+	blue_mask = cv2.dilate(blue_mask, None, iterations=2)
+
+	# find contours in the mask
+	blue_cnts = cv2.findContours(blue_mask.copy(), cv2.RETR_EXTERNAL,
+		cv2.CHAIN_APPROX_SIMPLE)
+	blue_cnts = imutils.grab_contours(blue_cnts)
+	
+	center = None
+	# only proceed if at least one contour was found
+	valid_blue_cnts = []
+	if len(blue_cnts) > 0:
+		# find the largest contour in the mask, then use
+		# it to compute the minimum enclosing circle and
+		# centroid
+		for c in blue_cnts:
+			M = cv2.moments(c)
+			blue_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+
+			# only proceed if the radius meets a minimum size
+			if M["m00"] > minArea:
+				rect = cv2.minAreaRect(c)
+				box = cv2.boxPoints(rect)
+				box = np.int0(box)
+
+				if DEBUG['show_img']:
+					cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
+				valid_blue_cnts.append({
+					'contour': c,
+					'left_edge': min(box[0][0], box[3][0]),
+					'right_edge': max(box[1][0], box[2][0]),
+					'top_edge': min(box[0][1], box[1][1]),
+					'bottom_edge': min(box[2][1], box[3][1])
+				})
+				# draw the circle and centroid on the frame,
+				# then update the list of tracked points
+		
+		if REQ_CLOSEST:
+			#track the largest
+			c = max(blue_cnts, key=cv2.contourArea)
+			rect = cv2.minAreaRect(c)
+			box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
+			box = np.int0(box)
+
+			if DEBUG['show_img']:
+				frame = cv2.line(frame,(min(box[0][0], box[3][0]), 0),(min(box[0][0], box[3][0]), img_y_size),(252, 3, 119),3)
+				frame = cv2.line(frame,(max(box[1][0], box[2][0]), 0),(max(box[1][0], box[2][0]), img_y_size),(252, 3, 119),3)
+				cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
+
+			M = cv2.moments(c)
+			if M["m00"] > minArea:
+				blue_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+			else:
+				blue_center = None
+	else:
+		blue_center = None
 
 	if CONNECT_TO_SERVER:
 		if center is None:
@@ -192,19 +242,33 @@ while True:
 
 	# update the points queue
 	if DEBUG['show_img'] and REQ_CLOSEST:
-		pts.appendleft(center)
+		red_pts.appendleft(center)
 
 		# loop over the set of tracked points
-		for i in range(1, len(pts)):
+		for i in range(1, len(red_pts)):
 			# if either of the tracked points are None, ignore
 			# them
-			if pts[i - 1] is None or pts[i] is None:
+			if red_pts[i - 1] is None or red_pts[i] is None:
 				continue
 
 			# otherwise, compute the thickness of the line and
 			# draw the connecting lines
 			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
-			cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
+			cv2.line(frame, red_pts[i - 1], red_pts[i], (0, 0, 255), thickness)
+
+		blue_pts.appendleft(center)
+
+		# loop over the set of tracked points
+		for i in range(1, len(blue_pts)):
+			# if either of the tracked points are None, ignore
+			# them
+			if blue_pts[i - 1] is None or blue_pts[i] is None:
+				continue
+
+			# otherwise, compute the thickness of the line and
+			# draw the connecting lines
+			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
+			cv2.line(frame, blue_pts[i - 1], blue_pts[i], (255, 0, 0), thickness)
 
 	# show the frame to our screen
 	if DEBUG['show_img']:

@@ -28,8 +28,8 @@ DEBUG = {
 		'red': True	
 	},
 	'draw_normal_box': {
-		'blue': False,
-		'red': False	
+		'blue': True,
+		'red': True	
 	}
 }
 REQ_CLOSEST = True
@@ -86,7 +86,7 @@ redUpper = (179, 255, 255) # TODO: get vals.
 blueLower = (100, 80, 0)     # TODO: get vals. higher saturation I think. b/c MPR light blue.
 blueUpper = (110, 255, 255)   # TODO: get vals. 
 
-minArea = 100 # 10 TODO: tune.
+minArea = 150 # 10 TODO: tune.
 red_pts = deque(maxlen=args["buffer"])
 blue_pts = deque(maxlen=args["buffer"])
 
@@ -94,7 +94,7 @@ blue_pts = deque(maxlen=args["buffer"])
 vs = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 vs.set(cv2.CAP_PROP_FPS, 30)
 
-time.sleep(2.0)
+time.sleep(1.0)
 
 img_x_size = int(vs.get(cv2.CAP_PROP_FRAME_WIDTH))
 img_y_size = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -221,6 +221,7 @@ while True:
 
 	if REQ_CLOSEST:
 			#track the largest
+			valid = True
 			if len(valid_blue_cnts) > 0:
 				c = max([datapack for datapack in valid_blue_cnts], key=lambda dc: cv2.contourArea(dc['contour']))
 				box = c['box']
@@ -234,6 +235,7 @@ while True:
 					if DEBUG['show_max_box']['blue']:
 						cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
 				blue_max_c = c
+			else: valid = False
 
 			if len(valid_red_cnts) > 0:
 				c = max([datapack for datapack in valid_red_cnts], key=lambda dc: cv2.contourArea(dc['contour']))
@@ -248,24 +250,30 @@ while True:
 					if DEBUG['show_max_box']['red']:
 						cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
 				red_max_c = c
+			else: valid = False
+			
+			if valid:
+				center_avg = ((red_max_c['center'][0] + blue_max_c['center'][0])//2, (red_max_c['center'][1] + blue_max_c['center'][1])//2)
+				if DEBUG['show_max_box']['blue'] and DEBUG['show_max_box']['red']:
+					cv2.circle(frame, center_avg, 5, (0, 255, 0), -1)
 
 	if CONNECT_TO_SERVER:
-		if center is None:
+		if center_avg is None:
 			table.putBoolean('has_target', False)
 			table.putBoolean('near', False)
 		else:
 			table.putBoolean('has_target', True)
-			if center[0] < (img_center[0] - CENTER_BAND):
-				table.putNumber('left_exceeded', ((img_center[0] - CENTER_BAND) - center[0]))
+			if center_avg[0] < (img_center[0] - CENTER_BAND):
+				table.putNumber('left_exceeded', ((img_center[0] - CENTER_BAND) - center_avg[0]))
 			else:
 				table.putNumber('left_exceeded', 0)
 
-			if center[0] > (img_center[0] + CENTER_BAND):
-				table.putNumber('right_exceeded', (center[0] - (img_center[0] + CENTER_BAND)))
+			if center_avg[0] > (img_center[0] + CENTER_BAND):
+				table.putNumber('right_exceeded', (center_avg[0] - (img_center[0] + CENTER_BAND)))
 			else:
 				table.putNumber('right_exceeded', 0)
 			
-			if center[1] < (img_center[1] + HORIZONTAL_OFFSET):
+			if center_avg[1] < (img_center[1] + HORIZONTAL_OFFSET):
 				table.putBoolean('near', True)
 			else:
 				table.putBoolean('near', False)
@@ -273,7 +281,7 @@ while True:
 
 	# update the points queue
 	if DEBUG['show_img'] and REQ_CLOSEST:
-		red_pts.appendleft(red_center)
+		red_pts.appendleft(red_max_c['center'])
 
 		# loop over the set of tracked points
 		for i in range(1, len(red_pts)):
@@ -287,7 +295,7 @@ while True:
 			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
 			cv2.line(frame, red_pts[i - 1], red_pts[i], (0, 0, 255), thickness)
 
-		blue_pts.appendleft(blue_center)
+		blue_pts.appendleft(blue_max_c['center'])
 
 		# loop over the set of tracked points
 		for i in range(1, len(blue_pts)):

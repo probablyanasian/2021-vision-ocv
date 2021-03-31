@@ -1,4 +1,3 @@
-# import the necessary packages
 from collections import deque
 from imutils.video import VideoStream
 from networktables import NetworkTables
@@ -66,11 +65,10 @@ img_y_size = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
 img_center = (img_x_size//2, img_y_size//2)
 
 
-# keep looping
 hold_value = 0 # hold val
 center_hold = None
 while True:
-	# grab the current frame
+	# grab frame
 	frame = vs.read()
 	frame = frame[1]
 
@@ -78,9 +76,7 @@ while True:
 	blurred = cv2.GaussianBlur(frame, (11, 11), 0)
 	hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-	# construct a mask for the color yellow
-	# dilate and erode to remove any small
-	# blobs left in the mask
+	# mask yellow, dilate and erode
 	mask = cv2.inRange(hsv, yellowLower, yellowUpper)
 	if DEBUG['show_filter']:
 		cv2.imshow("filter", mask)
@@ -96,9 +92,6 @@ while True:
 
 	# only proceed if at least one contour was found
 	if len(cnts) > 0:
-		# find the largest contour in the mask, then use
-		# it to compute the minimum enclosing circle and
-		# centroid
 		valid_cnts = []
 		for c in cnts:
 			# c = max(cnts, key=cv2.contourArea)
@@ -195,8 +188,7 @@ while True:
 	if DEBUG['show_img']:
 		# loop over the set of tracked points
 		for i in range(1, len(pts)):
-			# if either of the tracked points are None, ignore
-			# them
+			# if either of the tracked points are None, ignore them
 			if pts[i - 1] is None or pts[i] is None:
 				continue
 
@@ -226,6 +218,4 @@ while True:
 		break
 
 vs.release()
-
-# close all windows
 cv2.destroyAllWindows()

@@ -1,4 +1,3 @@
-# import the necessary packages
 from collections import deque
 from imutils.video import VideoStream
 from networktables import NetworkTables
@@ -101,9 +100,7 @@ img_x_size = int(vs.get(cv2.CAP_PROP_FRAME_WIDTH))
 img_y_size = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
 img_center = (img_x_size//2, img_y_size//2)
 
-# keep looping
 while True:
-	# grab the current frame
 	frame = vs.read()
 	frame = frame[1]
 
@@ -111,9 +108,6 @@ while True:
 	blurred = cv2.GaussianBlur(frame, (11, 11), 0)
 	hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-	# construct a mask for the color, then perform
-	# a series of dilations and erosions to remove any small
-	# blobs left in the mask
 	red_mask = cv2.inRange(hsv, redLower, redUpper)
 	if DEBUG['show_filter']:
 		cv2.imshow("red_filter", red_mask)
@@ -127,14 +121,10 @@ while True:
 	# only proceed if at least one contour was found
 	valid_red_cnts = []
 	if len(red_cnts) > 0:
-		# find the largest contour in the mask, then use
-		# it to compute the minimum enclosing circle and
-		# centroid
 		for c in red_cnts:
 			M = cv2.moments(c)
 			red_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
-			# only proceed if the radius meets a minimum size
 			if M["m00"] > minArea:
 				rect = cv2.minAreaRect(c)
 				box = cv2.boxPoints(rect)
@@ -148,8 +138,6 @@ while True:
 					'center': red_center,
 					'box': box
 				})
-				# draw the circle and centroid on the frame,
-				# then update the list of tracked points
 	else:
 		red_center = None
 
@@ -168,14 +156,10 @@ while True:
 	# only proceed if at least one contour was found
 	valid_blue_cnts = []
 	if len(blue_cnts) > 0:
-		# find the largest contour in the mask, then use
-		# it to compute the minimum enclosing circle and
-		# centroid
 		for c in blue_cnts:
 			M = cv2.moments(c)
 			blue_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
-			# only proceed if the radius meets a minimum size
 			if M["m00"] > minArea:
 				rect = cv2.minAreaRect(c)
 				box = cv2.boxPoints(rect)
@@ -274,7 +258,6 @@ while True:
 				table.putBoolean('near', False)
 
 
-	# update the points queue
 	if DEBUG['show_img']:
 		if REQ_CLOSEST and valid and DEBUG['show_trails']:
 			red_pts.appendleft(red_max_c['center'])
@@ -325,6 +308,4 @@ while True:
 		break
 
 vs.release()
-
-# close all windows
 cv2.destroyAllWindows()

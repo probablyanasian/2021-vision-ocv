@@ -30,7 +30,8 @@ DEBUG = {
 	'draw_normal_box': {
 		'blue': True,
 		'red': True	
-	}
+	},
+	'show_trails': False
 }
 REQ_CLOSEST = True
 CONNECT_TO_SERVER = False
@@ -274,34 +275,38 @@ while True:
 
 
 	# update the points queue
-	if DEBUG['show_img'] and REQ_CLOSEST:
-		red_pts.appendleft(red_max_c['center'])
+	if DEBUG['show_img']:
+		if REQ_CLOSEST and valid and DEBUG['show_trails']:
+			red_pts.appendleft(red_max_c['center'])
 
-		# loop over the set of tracked points
-		for i in range(1, len(red_pts)):
-			# if either of the tracked points are None, ignore
-			# them
-			if red_pts[i - 1] is None or red_pts[i] is None:
-				continue
+			# loop over the set of tracked points
+			for i in range(1, len(red_pts)):
+				# if either of the tracked points are None, ignore
+				# them
+				if red_pts[i - 1] is None or red_pts[i] is None:
+					continue
 
-			# otherwise, compute the thickness of the line and
-			# draw the connecting lines
-			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
-			cv2.line(frame, red_pts[i - 1], red_pts[i], (0, 0, 255), thickness)
+				# otherwise, compute the thickness of the line and
+				# draw the connecting lines
+				thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
+				cv2.line(frame, red_pts[i - 1], red_pts[i], (0, 0, 255), thickness)
 
-		blue_pts.appendleft(blue_max_c['center'])
+			blue_pts.appendleft(blue_max_c['center'])
 
-		# loop over the set of tracked points
-		for i in range(1, len(blue_pts)):
-			# if either of the tracked points are None, ignore
-			# them
-			if blue_pts[i - 1] is None or blue_pts[i] is None:
-				continue
+			# loop over the set of tracked points
+			for i in range(1, len(blue_pts)):
+				# if either of the tracked points are None, ignore
+				# them
+				if blue_pts[i - 1] is None or blue_pts[i] is None:
+					continue
 
-			# otherwise, compute the thickness of the line and
-			# draw the connecting lines
-			thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
-			cv2.line(frame, blue_pts[i - 1], blue_pts[i], (255, 0, 0), thickness)
+				# otherwise, compute the thickness of the line and
+				# draw the connecting lines
+				thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
+				cv2.line(frame, blue_pts[i - 1], blue_pts[i], (255, 0, 0), thickness)
+		elif not valid and DEBUG['show_trails']:
+			red_pts.appendleft(None)
+			blue_pts.appendleft(None)
 
 		# show the frame to our screen
 		if DEBUG['show_centers']['red']:

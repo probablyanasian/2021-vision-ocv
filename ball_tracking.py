@@ -16,7 +16,7 @@ DEBUG = {
 	'show_band': True,
 	'show_horiz_div': True}
 CONNECT_TO_SERVER = False
-PRODUCTION = True # remove some double calculations.
+PRODUCTION = True # remove some double calculations. not actually.
 CENTER_BAND = 100
 HORIZONTAL_OFFSET = 100
 PERCENT_ERROR = 0.25 

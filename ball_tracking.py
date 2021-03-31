@@ -1,7 +1,3 @@
-# USAGE
-# python ball_tracking.py --video ball_tracking_example.mp4
-# python ball_tracking.py
-
 # import the necessary packages
 from collections import deque
 from imutils.video import VideoStream
@@ -50,33 +46,25 @@ def connect():
 if CONNECT_TO_SERVER:
     table = connect()
 
-# construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-b", "--buffer", type=int, default=64,
 	help="max buffer size")
 args = vars(ap.parse_args())
 
-# define the lower and upper boundaries of the "green"
-# ball in the HSV color space, then initialize the
-# list of tracked points
 yellowLower = (16, 0, 64) # 22, 93, 0
 yellowUpper = (32, 255, 255) # 45, 255, 255
 minRadius = 15 # 10
 pts = deque(maxlen=args["buffer"])
 
-# if a video path was not supplied, grab the reference
-# to the webcam
-
 vs = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 vs.set(cv2.CAP_PROP_FPS, 30)
 
-time.sleep(2.0)
+time.sleep(1.0)
 
 img_x_size = int(vs.get(cv2.CAP_PROP_FRAME_WIDTH))
 img_y_size = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
 img_center = (img_x_size//2, img_y_size//2)
 
-# allow the camera or video file to warm up
 
 # keep looping
 hold_value = 0 # hold val
@@ -84,12 +72,8 @@ center_hold = None
 while True:
 	# grab the current frame
 	frame = vs.read()
-
-	# handle the frame from VideoCapture or VideoStream
 	frame = frame[1]
 
-	# resize the frame, blur it, and convert it to the HSV
-	# color space
 	# frame = imutils.resize(frame, width=600)
 	blurred = cv2.GaussianBlur(frame, (11, 11), 0)
 	hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -241,13 +225,7 @@ while True:
 	if key == ord("q"):
 		break
 
-# if we are not using a video file, stop the camera video stream
-if not args.get("video", False):
-	vs.stop()
-
-# otherwise, release the camera
-else:
-	vs.release()
+vs.release()
 
 # close all windows
 cv2.destroyAllWindows()

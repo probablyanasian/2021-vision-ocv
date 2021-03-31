@@ -100,14 +100,10 @@ img_x_size = int(vs.get(cv2.CAP_PROP_FRAME_WIDTH))
 img_y_size = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
 img_center = (img_x_size//2, img_y_size//2)
 
-# allow the camera or video file to warm up
-
 # keep looping
 while True:
 	# grab the current frame
 	frame = vs.read()
-
-	# handle the frame from VideoCapture or VideoStream
 	frame = frame[1]
 
 	# frame = imutils.resize(frame, width=600)
@@ -198,8 +194,6 @@ while True:
 						if DEBUG['show_img'] and DEBUG['draw_normal_box']['blue']:
 							cv2.drawContours(frame, [box], 0, (255, 0, 0), 2)
 						break
-				# draw the circle and centroid on the frame,
-				# then update the list of tracked points
 	else:
 		blue_center = None
 
@@ -325,13 +319,7 @@ while True:
 	if key == ord("q"):
 		break
 
-# if we are not using a video file, stop the camera video stream
-if not args.get("video", False):
-	vs.stop()
-
-# otherwise, release the camera
-else:
-	vs.release()
+vs.release()
 
 # close all windows
 cv2.destroyAllWindows()

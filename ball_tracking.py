@@ -1,5 +1,4 @@
 from collections import deque
-from imutils.video import VideoStream
 from networktables import NetworkTables
 import numpy as np
 import argparse

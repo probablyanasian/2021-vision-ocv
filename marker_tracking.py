@@ -1,5 +1,4 @@
 from collections import deque
-from imutils.video import VideoStream
 from networktables import NetworkTables
 # from sympy import Interval, Union # not performant enough with multiple interval joins.
 import numpy as np
